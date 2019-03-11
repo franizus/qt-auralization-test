@@ -11,6 +11,8 @@ greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 TARGET = openglEx
 TEMPLATE = app
 
+LIBS += -lopengl32 -lglu32
+
 QMAKE_CXXFLAGS += -fopenmp
 QMAKE_LFLAGS *= -fopenmp
 

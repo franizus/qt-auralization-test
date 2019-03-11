@@ -1,11 +1,13 @@
 #include "glwidget.h"
 
-GlWidget::GlWidget(QWidget *parent) : QOpenGLWidget(parent),
-    m_xRot(0),
-    m_yRot(0),
-    m_zRot(0)
+GlWidget::GlWidget(QWidget *parent) : QOpenGLWidget(parent)
 {
-
+    m_observerDistance = 30;
+    m_gridSpace = 0.2;
+    m_focusAngle = 0.5;
+    m_gridElements = 40;
+    m_horizontalViewerAngle = 19 * M_PI / 60;
+    m_verticalViewerAngle = 13 * M_PI / 60;
 }
 
 GlWidget::~GlWidget()
@@ -21,97 +23,138 @@ static void qNormalizeAngle(int &angle)
         angle -= 360 * 16;
 }
 
-void GlWidget::setXRotation(int angle)
+void GlWidget::drawGrid()
 {
-    qNormalizeAngle(angle);
-    if (angle != m_xRot) {
-        m_xRot = angle;
-        update();
-    }
+    double l;
+    glColor3f(0.55, 0.55, 0.55);
+    glBegin(GL_LINES);
+        for(l=m_gridSpace; l < m_gridElements * m_gridSpace - m_gridSpace / 2; l += m_gridSpace)
+        {
+            glVertex3f(l, -m_gridElements * m_gridSpace,0);
+            glVertex3f(l, m_gridElements * m_gridSpace, 0);
+            glVertex3f(-m_gridElements * m_gridSpace, l, 0);
+            glVertex3f(m_gridElements * m_gridSpace, l, 0);
+        }
+        for(l =- m_gridSpace; l >- m_gridElements * m_gridSpace + m_gridSpace / 2; l -= m_gridSpace)
+        {
+            glVertex3f(l, -m_gridElements * m_gridSpace, 0);
+            glVertex3f(l, m_gridElements * m_gridSpace, 0);
+            glVertex3f(-m_gridElements * m_gridSpace, l, 0);
+            glVertex3f(m_gridElements * m_gridSpace, l, 0);
+        }
+    glEnd();
+    glColor3f(0.4, 0.4, 0.4);
+    glBegin(GL_LINE_LOOP);
+        glVertex3f(m_gridElements * m_gridSpace, m_gridElements * m_gridSpace, 0);
+        glVertex3f(m_gridElements * m_gridSpace, -m_gridElements * m_gridSpace, 0);
+        glVertex3f(-m_gridElements * m_gridSpace, -m_gridElements * m_gridSpace, 0);
+        glVertex3f(-m_gridElements * m_gridSpace, m_gridElements * m_gridSpace, 0);
+    glEnd();
+    glBegin(GL_LINES);
+        glVertex3f(-m_gridElements * m_gridSpace, 0, 0);
+        glVertex3f(m_gridElements * m_gridSpace, 0, 0);
+        glVertex3f(0, -m_gridElements * m_gridSpace, 0);
+        glVertex3f(0, m_gridElements * m_gridSpace, 0);
+        glVertex3f(0, 0, -m_gridElements * m_gridSpace);
+        glVertex3f(0, 0, m_gridElements * m_gridSpace);
+    glEnd();
 }
 
-void GlWidget::setYRotation(int angle)
+void GlWidget::drawAxis()
 {
-    qNormalizeAngle(angle);
-    if (angle != m_yRot) {
-        m_yRot = angle;
-        update();
-    }
-}
-
-void GlWidget::setZRotation(int angle)
-{
-    qNormalizeAngle(angle);
-    if (angle != m_zRot) {
-        m_zRot = angle;
-        update();
-    }
+    glLineWidth(2);
+    glColor3f(1, 0.65, 0.65);
+    glBegin(GL_LINES);
+        glVertex3f(0, 0, 0);
+        glVertex3f(0.1 * m_gridElements * m_gridSpace, 0, 0);
+    glEnd();
+    glColor3f(0.65, 1, 0.65);
+    glBegin(GL_LINES);
+        glVertex3f(0, 0, 0);
+        glVertex3f(0, 0.1 * m_gridElements * m_gridSpace, 0);
+    glEnd();
+    glColor3f(0.65, 0.65, 1);
+    glBegin(GL_LINES);
+        glVertex3f(0,0,0);
+        glVertex3f(0, 0, 0.1 * m_gridElements * m_gridSpace);
+    glEnd();
+    glLineWidth(1);
 }
 
 void GlWidget::initializeGL()
 {
     initializeOpenGLFunctions();
-    glClearColor(1,1,1,1);
+    glClearColor(0.6,0.6,0.6,0.0);
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_CULL_FACE);
+    glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+    glEnable(GL_POLYGON_OFFSET_FILL);
+    glPolygonOffset(1.0,1.0);
+    glLineWidth(1);
+    glPointSize(4);
 }
 
 void GlWidget::paintGL()
 {
+    double  frontPlaneDistance, backPlaneDistance;
+
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+    backPlaneDistance = qSqrt(3 * m_gridElements * m_gridSpace * m_gridElements * m_gridSpace
+                              + 2 * m_gridElements * m_gridSpace * (qAbs(m_centerPoint.x())
+                              + qAbs(m_centerPoint.y()) + qAbs(m_centerPoint.z())) + m_centerPoint.x()
+                              * m_centerPoint.x() + m_centerPoint.y() * m_centerPoint.y() + m_centerPoint.z()
+                              * m_centerPoint.z());
+    if(m_observerDistance > backPlaneDistance)
+        frontPlaneDistance = backPlaneDistance;
+    else
+        frontPlaneDistance = 0.99 * m_observerDistance;
+
+    /*glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-        glTranslatef(0.0, 0.0, -10.0);
-        glRotatef(m_xRot / 16.0, 1.0, 0.0, 0.0);
-        glRotatef(m_yRot / 16.0, 0.0, 1.0, 0.0);
-        glRotatef(m_zRot / 16.0, 0.0, 0.0, 1.0);
 
-    glColor3f(0.5, 0.5, 0.5);
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
 
-            glBegin(GL_LINES);
+    QMatrix4x4 m;
+    m.rotate(m_xRot + 30, 1, 0, 0);
+    m.rotate(m_yRot, 0, 1, 0);
 
-            for (double l = 0.2; l < 40 * 0.2 - 0.2 / 2; l += 0.2)
-            {
-                glVertex3f(l, 0, -40 * 0.2);
-                glVertex3f(l, 0, 40 * 0.2);
-                glVertex3f(-40 * 0.2, 0, l);
-                glVertex3f(40 * 0.2, 0, l);
-            }
+    QVector4D aux;
+    QVector4D auxNormal;
+    auxNormal = m_up;
 
-            for (double l = -0.2; l > -40 * 0.2 + 0.2 / 2; l -= 0.2)
-            {
-                glVertex3f(l, 0, -40 * 0.2);
-                glVertex3f(l, 0, 40 * 0.2);
-                glVertex3f(-40 * 0.2, 0, l);
-                glVertex3f(40 * 0.2, 0, l);
-            }
+    aux = m_observerPoint;
+    m_observerPoint = m * ((m_observerPoint - m_centerPoint).normalized() * m_observerDistance);
+    m_up = m * m_up;*/
 
-            glEnd();
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
 
-            //Contour lines
+    gluPerspective(180 * m_focusAngle / M_PI, this->width() / this->height(),
+                  m_observerDistance - frontPlaneDistance, m_observerDistance + backPlaneDistance);
 
-            glColor3f(0.1, 0.1, 0.1);
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+    m_observerPoint.setX(m_observerDistance * qCos(m_verticalViewerAngle)
+                         * qCos(m_horizontalViewerAngle) + m_centerPoint.x());
+    m_observerPoint.setY(m_observerDistance * qCos(m_verticalViewerAngle)
+                         * qSin(m_horizontalViewerAngle) + m_centerPoint.y());
+    m_observerPoint.setZ(m_observerDistance * qSin(m_verticalViewerAngle) + m_centerPoint.z());
+    m_up.setX(-qSin(m_horizontalViewerAngle));
+    m_up.setY(qCos(m_horizontalViewerAngle));
+    m_up.setZ(0);
+    m_up = (m_up / (m_centerPoint - m_observerPoint)).normalized();
 
-            glBegin(GL_LINE_LOOP);
-            glVertex3f(40 * 0.2, 0, 40 * 0.2);
-            glVertex3f(40 * 0.2, 0, -40 * 0.2);
-            glVertex3f(-40 * 0.2, 0, -40 * 0.2);
-            glVertex3f(-40 * 0.2, 0, 40 * 0.2);
-            glEnd();
+    gluLookAt(m_observerPoint.x(), m_observerPoint.y(), m_observerPoint.z(),
+              m_centerPoint.x(), m_centerPoint.y(), m_centerPoint.z(),
+              m_up.x(), m_up.y(), m_up.z());
 
-            //Axis lines
-            glBegin(GL_LINES);
+    drawGrid();
 
-            glColor3f(1, 0, 0);
-            glVertex3f(-1, 0, 0);
-            glVertex3f(1, 0, 0);
-
-            glColor3f(0, 1, 0);
-            glVertex3f(0, -1, 0);
-            glVertex3f(0, 1, 0);
-
-            glColor3f(0, 0, 1);
-            glVertex3f(0, 0, -1);
-            glVertex3f(0, 0, 1);
-            glEnd();
+    glDisable(GL_DEPTH_TEST);
+    drawAxis();
+    glEnable(GL_DEPTH_TEST);
 }
 
 void GlWidget::resizeGL(int width, int height)
@@ -126,15 +169,57 @@ void GlWidget::mousePressEvent(QMouseEvent *event)
 
 void GlWidget::mouseMoveEvent(QMouseEvent *event)
 {
+    double v = 1;
     int dx = event->x() - m_lastPos.x();
     int dy = event->y() - m_lastPos.y();
 
-    if (event->buttons() & Qt::LeftButton) {
-        setXRotation(m_xRot + 8 * dy);
-        setYRotation(m_yRot + 8 * dx);
-    } else if (event->buttons() & Qt::RightButton) {
-        setXRotation(m_xRot + 8 * dy);
-        setZRotation(m_zRot + 8 * dx);
+    if(dx < 0)
+        m_horizontalViewerAngle += v * M_PI / 60;
+    if(dx>0)
+        m_horizontalViewerAngle -= v * M_PI / 60;
+    if(dy>0)
+    {
+        m_verticalViewerAngle += v * M_PI / 60;
+        if(m_verticalViewerAngle < -M_PI / 2)
+            m_verticalViewerAngle = -M_PI / 2;
     }
+    if(dy<0)
+    {
+        m_verticalViewerAngle -= v * M_PI / 60;
+        if(m_verticalViewerAngle > M_PI / 2)
+            m_verticalViewerAngle = M_PI / 2;
+    }
+
+    /*float sens = 0.3;
+
+    if (dx < 0)
+        m_yRot += (180 / 60) * sens;
+    if (dx > 0)
+        m_yRot -= (180 / 60) * sens;
+
+    if (dy > 0)
+        m_xRot += (180 / 60) * sens;
+    if (dy < 0)
+        m_xRot -= (180 / 60) * sens;*/
+
+    update();
+
     m_lastPos = event->pos();
+}
+
+void GlWidget::wheelEvent(QWheelEvent *event)
+{
+    double v = 1;
+    int numDegrees = event->delta() / 8;
+    if (numDegrees < 0)
+    {
+        if (m_observerDistance < 100 * v * 2 * m_gridSpace)
+            m_observerDistance += v * 2 * m_gridSpace * qTan(0.5 / (v * 2)) / qTan(m_focusAngle / (v * 2));
+    }
+    else
+    {
+        if (m_observerDistance > v * 2 * m_gridSpace)
+            m_observerDistance -= v * 2 * m_gridSpace * qTan(0.5 / (v * 2)) / qTan(m_focusAngle / (v * 2));
+    }
+    update();
 }
