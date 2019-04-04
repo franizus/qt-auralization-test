@@ -114,8 +114,11 @@ void GlWidget::paintGL()
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
 
-    gluPerspective(180 * m_focusAngle / M_PI, this->width() / this->height(),
-                  m_observerDistance - frontPlaneDistance, m_observerDistance + backPlaneDistance);
+    QMatrix4x4 perspective;
+    perspective.setToIdentity();
+    perspective.perspective(180 * m_focusAngle / M_PI, this->width() / this->height(),
+                            m_observerDistance - frontPlaneDistance, m_observerDistance + backPlaneDistance);
+    glMultMatrixf(perspective.data());
 
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
@@ -128,9 +131,10 @@ void GlWidget::paintGL()
     m_up.setY(1);
     m_up.setZ(0);
 
-    gluLookAt(m_observerPoint.x(), m_observerPoint.y(), m_observerPoint.z(),
-              m_centerPoint.x(), m_centerPoint.y(), m_centerPoint.z(),
-              m_up.x(), m_up.y(), m_up.z());
+    QMatrix4x4 look;
+    look.setToIdentity();
+    look.lookAt(m_observerPoint, m_centerPoint, m_up);
+    glMultMatrixf(look.data());
 
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 

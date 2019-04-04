@@ -12,7 +12,6 @@
 #include <QMouseEvent>
 #include <QWheelEvent>
 #include <QColor>
-#include <GL/glu.h>
 #include <QtDebug>
 #include <iostream>
 
